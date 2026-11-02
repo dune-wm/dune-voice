@@ -1,0 +1,18 @@
+# ~/.config/dune/voice.toml: every setting is optional; read again each time dune-voice
+# listens (but engine and model, read when it starts). `dune-voice phrases` lists what can
+# be said.
+
+engine = "hex"                              # who hears: "hex" (the running Hex) or "vosk"
+model = "~/.local/share/dune-voice/model"   # vosk: a Vosk model folder
+timeout = 5                                 # seconds `dune-voice listen` listens, 1-30
+notify = true                               # notify-send: listening, what it heard
+
+# On top of the built-in phrases: the same phrase, this command; "none": gone. {n} is a
+# number said from "one" to "nine" (or a digit), and in the command that number as a digit.
+# {text} is anything said (Hex only), quoted for the shell in the command.
+[phrases]
+"settings" = "qs -c dune ipc call settings toggle"
+"browser" = "vivaldi-stable"
+"go to desk {n}" = "dune action desk_{n}"
+"launch {text}" = "dune find --pick apps {text}"
+# "lock" = "none"
