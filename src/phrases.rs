@@ -119,6 +119,11 @@ const DEFAULTS: &[(&str, &str)] = &[
     ("open file {text}", "dune find --pick files {text}"),
     // `:t`: the app as a tab of the focused tile's container.
     ("new tab {text}", "dune find --pick apps {text} :t"),
+    // dune-a11y: what is called that in the focused window (a button, a link, a tab...),
+    // from its accessibility tree; "click" alone is still the pointer's button.
+    ("click {text}", "dune-a11y click {text}"),
+    ("click on {text}", "dune-a11y click {text}"),
+    ("press {text}", "dune-a11y click {text}"),
 ];
 
 /// The sides a program can open on, as said, and as dune-finder's `:` word: "firefox
@@ -347,6 +352,12 @@ mod tests {
         assert_eq!(command(&phrases, "new tab").as_deref(), Some("dune action empty_tab"));
         assert_eq!(command(&phrases, "Next.").as_deref(), Some("dune action next_tab"));
         assert_eq!(command(&phrases, "back").as_deref(), Some("dune action prev_tab"));
+        // dune-a11y: a name in the focused window; the pointer's buttons stay.
+        assert_eq!(command(&phrases, "Click Save as.").as_deref(), Some("dune-a11y click 'save as'"));
+        assert_eq!(command(&phrases, "click on settings").as_deref(), Some("dune-a11y click 'settings'"));
+        assert_eq!(command(&phrases, "press send").as_deref(), Some("dune-a11y click 'send'"));
+        assert_eq!(command(&phrases, "click").as_deref(), Some("dune pointer click"));
+        assert_eq!(command(&phrases, "right click").as_deref(), Some("dune pointer click right"));
         // The phrase with the most words around the text wins.
         assert_eq!(command(&phrases, "open file notes").as_deref(), Some("dune find --pick files 'notes'"));
         // A phrase without text first: "go to" would take it otherwise.

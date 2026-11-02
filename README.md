@@ -16,7 +16,8 @@ runs commands; if it is not running, or the microphone fails, dune is not touche
   and let Mod go. dune tells it through `dune events mod` (`start`, `end`); a key pressed
   meanwhile (a shortcut after all) is `cancel`, and nothing runs.
 - Hold Shift alone for 300 ms: Hex dictates into the focused app while you speak; let Shift
-  go and it is pasted there. A key or a button meanwhile (a capital letter) drops it. A
+  go and it is pasted there. A key, a button or the wheel meanwhile (a capital letter,
+  Shift+wheel's sideways scroll) drops it; before the 300 ms, it never starts. A
   dictation Hex is already doing (its own shortcut, `hex dictation toggle`) is left alone.
 - `dune-voice listen` (on a key of `[spawn]`, or a script) listens without holding anything,
   for `timeout` seconds (Vosk: until a short silence after a phrase); again meanwhile: it stops.
@@ -97,6 +98,12 @@ With dune-finder (Hex only, the text is anything said):
 | file *text* | dune-finder on the files with the text typed in |
 | open file *text* | open the first file or folder it lists |
 | new tab *text* | start the first app it lists as a tab of this tile (`new tab firefox`) |
+
+With [dune-a11y](../dune-a11y) (Hex only):
+
+| Phrase | Does |
+|---|---|
+| click *text*, click on *text*, press *text* | click what is called that in the focused window: a button, a link, a tab, a menu item (`click save`, `press send`); `dune-a11y names` lists what can be said. "click" alone is still the pointer's button |
 
 "Open" and "go to" take the first row as Enter would, never the text as a command; when
 nothing matches, dune-finder stays open with the text. A phrase without free text wins over
