@@ -76,6 +76,7 @@ hear). Built in:
 | monitor / monitor left / right | focus the next monitor / that monitor |
 | send monitor | send the tile to the next monitor |
 | click / right click / middle click / double click | the pointer's buttons where it is (dune-eye-tracker learns from them too) |
+| zoom / zoom off | dune's last-mile zoom: the tile under the pointer magnified 3x around it, for the last pixels (then "click" clicks there and goes out) / out without a click |
 | close | close the tile |
 | fullscreen, full screen / full width | fullscreen / full width |
 | wider / narrower / taller / shorter / cycle width | sizes |

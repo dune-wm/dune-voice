@@ -104,6 +104,10 @@ const DEFAULTS: &[(&str, &str)] = &[
     ("right click", "dune pointer click right"),
     ("middle click", "dune pointer click middle"),
     ("double click", "dune pointer click && dune pointer click"),
+    // dune's last-mile zoom: the tile under the pointer magnified 3x around it ("click"
+    // then clicks and goes out); not "zoom in/out", a browser's own (`context`).
+    ("zoom", "dune action zoom"),
+    ("zoom off", "dune action zoom_out"),
     ("lock", "dune action lock"),
     ("dictate english", "dune-voice language en"),
     ("dictate spanish", "dune-voice language es"),
@@ -357,6 +361,8 @@ mod tests {
         assert_eq!(command(&phrases, "click on settings").as_deref(), Some("dune-a11y click 'settings'"));
         assert_eq!(command(&phrases, "press send").as_deref(), Some("dune-a11y click 'send'"));
         assert_eq!(command(&phrases, "click").as_deref(), Some("dune pointer click"));
+        assert_eq!(command(&phrases, "Zoom.").as_deref(), Some("dune action zoom"));
+        assert_eq!(command(&phrases, "zoom off").as_deref(), Some("dune action zoom_out"));
         assert_eq!(command(&phrases, "right click").as_deref(), Some("dune pointer click right"));
         // The phrase with the most words around the text wins.
         assert_eq!(command(&phrases, "open file notes").as_deref(), Some("dune find --pick files 'notes'"));
