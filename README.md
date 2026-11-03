@@ -1,6 +1,6 @@
 # dune-voice
 
-Drive [dune](../dune) by voice. Hold Mod (dune's `modifier`, Super or Alt), say a short phrase
+Drive [dune](https://github.com/dune-wm/dune) by voice. Hold Mod (dune's `modifier`, Super or Alt), say a short phrase
 ("desk three", "left", "close", "open firefox"), let Mod go, and dune does it. Everything
 runs on this computer: Hex (the `hex` app, the default) or
 [Vosk](https://alphacephei.com/vosk/) turns the sound into words, nothing goes to the network.
@@ -40,6 +40,7 @@ runs commands; if it is not running, or the microphone fails, dune is not touche
 ## Install
 
 ```sh
+git clone https://github.com/dune-wm/dune-voice && cd dune-voice
 cargo install --path . --locked     # links libvosk: sudo pacman -S vosk-api
 ```
 
@@ -100,7 +101,7 @@ With dune-finder (Hex only, the text is anything said):
 | open file *text* | open the first file or folder it lists |
 | new tab *text* | start the first app it lists as a tab of this tile (`new tab firefox`) |
 
-With [dune-a11y](../dune-a11y) (Hex only):
+With [dune-a11y](https://github.com/dune-wm/dune-a11y) (Hex only):
 
 | Phrase | Does |
 |---|---|
