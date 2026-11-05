@@ -1,4 +1,6 @@
 //! Phrases that depend on what is on screen, tried before the phrase table:
+//! - hints on screen (`dune-a11y hints`, `$XDG_RUNTIME_DIR/dune-hints.json`): what is heard
+//!   is the word of the one to click, for `dune-a11y hint`;
 //! - the minimap open (dune-shell writes what it shows to
 //!   `$XDG_RUNTIME_DIR/dune-shell-minimap-OUTPUT.json`): "next", "back", "first", "last",
 //!   "middle", or a window's name (the first one of that name) picks a window in it;
@@ -144,8 +146,18 @@ fn strip_command_on(screen: &Screen, heard: &str) -> Option<String> {
     Some(format!("dune goto {}", tile.tile))
 }
 
+/// "dune …": the rest, to go past what is on screen to the phrase table ("dune next" is
+/// dune's next tab with a browser focused). As Hex wrote it, punctuation kept.
+pub fn past_screen(heard: &str) -> Option<&str> {
+    let (first, rest) = heard.trim().split_once(char::is_whitespace)?;
+    (words(first) == ["dune"] && !words(rest).is_empty()).then(|| rest.trim_start())
+}
+
 /// What to do with `heard`, given the screen: the minimap first, then the focused browser.
 pub fn command(heard: &str) -> Option<Do> {
+    if hints_open() {
+        return Some(Do::Run(format!("dune-a11y hint {}", quote(heard))));
+    }
     if let Some(map) = open_minimap()
         && let Some(command) = minimap_command(&map, heard)
     {
@@ -156,6 +168,30 @@ pub fn command(heard: &str) -> Option<Do> {
         return browser_command(heard);
     }
     None
+}
+
+/// How long hints stay, in seconds (dune-a11y's OPEN_FOR).
+const HINTS_FOR: f64 = 15.0;
+
+/// What `dune-a11y hints` wrote: when, and whether any are left.
+#[derive(Debug, Default, Deserialize)]
+struct Hints {
+    #[serde(default)]
+    at: f64,
+    #[serde(default)]
+    hints: Vec<serde_json::Value>,
+}
+
+/// Whether hints wrote at `at` are still shown at `now`.
+fn hints_shown(text: &str, now: f64) -> bool {
+    serde_json::from_str::<Hints>(text).is_ok_and(|h| !h.hints.is_empty() && now - h.at <= HINTS_FOR)
+}
+
+fn hints_open() -> bool {
+    let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") else { return false };
+    let Ok(text) = std::fs::read_to_string(std::path::Path::new(&dir).join("dune-hints.json")) else { return false };
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0.0, |d| d.as_secs_f64());
+    hints_shown(&text, now)
 }
 
 /// The minimap open on some monitor, if one is (with windows in it).
@@ -213,6 +249,9 @@ fn is_browser(app: &str) -> bool {
 }
 
 /// The keys each browser phrase presses (`wtype` arguments).
+/// Each `wtype` is a new virtual keyboard with its own keymap: `-s 50` gives the browser
+/// time to take it before the first key, else it may read that key with the keymap of the
+/// one before.
 const BROWSER_KEYS: &[(&str, &str)] = &[
     ("devtools", "-M ctrl -M shift i -m shift -m ctrl"),
     ("dev tools", "-M ctrl -M shift i -m shift -m ctrl"),
@@ -226,6 +265,9 @@ const BROWSER_KEYS: &[(&str, &str)] = &[
     ("previous tab", "-M ctrl -M shift -k Tab -m shift -m ctrl"),
     ("new tab", "-M ctrl t -m ctrl"),
     ("close tab", "-M ctrl w -m ctrl"),
+    ("close up", "-M ctrl w -m ctrl"),
+    // Hex writes "close up" so.
+    ("closed up", "-M ctrl w -m ctrl"),
     ("reopen tab", "-M ctrl -M shift t -m shift -m ctrl"),
     ("address", "-M ctrl l -m ctrl"),
     ("top", "-k Home"),
@@ -237,13 +279,29 @@ const BROWSER_KEYS: &[(&str, &str)] = &[
     ("zoom in", "-M ctrl plus -m ctrl"),
     ("zoom out", "-M ctrl minus -m ctrl"),
     ("zoom reset", "-M ctrl 0 -m ctrl"),
+    ("commands", QUICK_COMMANDS),
+    ("quick commands", QUICK_COMMANDS),
 ];
+
+/// Vivaldi's Quick Commands, on F2 (set in Vivaldi's keyboard settings): one key, no
+/// modifier to get wrong. Ctrl+E sometimes scrolled the page instead. Pressed without the
+/// `-s 50`.
+const QUICK_COMMANDS: &str = "-k F2";
+
+/// What can be said to a focused browser or the open minimap without free text, for
+/// `dune-voice fix` to offer.
+pub fn phrases() -> Vec<&'static str> {
+    let mut out: Vec<&str> = BROWSER_KEYS.iter().map(|(p, _)| *p).collect();
+    out.extend(["done", "first", "last", "middle", "next", "back", "previous"]);
+    out
+}
 
 /// The phrase said to a focused browser.
 pub fn browser_command(heard: &str) -> Option<Do> {
     let said = words(heard).join(" ");
     if let Some((_, keys)) = BROWSER_KEYS.iter().find(|(phrase, _)| *phrase == said) {
-        return Some(Do::Run(format!("wtype {keys}")));
+        let pause = if *keys == QUICK_COMMANDS { "" } else { "-s 50 " };
+        return Some(Do::Run(format!("wtype {pause}{keys}")));
     }
     let after = |word: &str| said.strip_prefix(word).and_then(|rest| rest.strip_prefix(' ')).map(str::to_string);
     // "open x.com", "go to github dot com": that address, in this tab. Not an address
@@ -256,8 +314,12 @@ pub fn browser_command(heard: &str) -> Option<Do> {
     if let Some(text) = after("search") {
         return Some(Do::Run(typed(&["-M ctrl t -m ctrl"], &text)));
     }
+    // "command bookmarks": Quick Commands, that text, Enter.
+    if let Some(text) = after("command").or_else(|| after("quick command")) {
+        return Some(Do::Run(format!("wtype {QUICK_COMMANDS} && sleep 0.15 && wtype -- {} && wtype -k Return", quote(&text))));
+    }
     if let Some(text) = after("find in page").or_else(|| after("find on page")) {
-        return Some(Do::Run(format!("wtype -M ctrl f -m ctrl && sleep 0.15 && wtype -- {}", quote(&text))));
+        return Some(Do::Run(format!("wtype -s 50 -M ctrl f -m ctrl && sleep 0.15 && wtype -s 50 -- {}", quote(&text))));
     }
     if let Some(text) = after("tab") {
         return Some(Do::Tab(text));
@@ -267,8 +329,8 @@ pub fn browser_command(heard: &str) -> Option<Do> {
 
 /// Keys, a breath for the browser to show the address bar, the text, then Enter.
 fn typed(keys: &[&str], text: &str) -> String {
-    let keys: Vec<String> = keys.iter().map(|k| format!("wtype {k}")).collect();
-    format!("{} && sleep 0.15 && wtype -- {} && wtype -k Return", keys.join(" && "), quote(text))
+    let keys: Vec<String> = keys.iter().map(|k| format!("wtype -s 50 {k}")).collect();
+    format!("{} && sleep 0.15 && wtype -s 50 -- {} && wtype -s 50 -k Return", keys.join(" && "), quote(text))
 }
 
 /// The address said after "open": as Hex wrote it ("x.com") or spelled out ("x dot com"),
@@ -389,6 +451,25 @@ fn focused_app(line: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn hints_are_shown_while_their_time_lasts() {
+        let text = r#"{"output":"HDMI-A-1","at":100.5,"hints":[{"word":"apple"}]}"#;
+        assert!(hints_shown(text, 110.0));
+        assert!(!hints_shown(text, 116.0));
+        assert!(!hints_shown("{}", 100.0));
+        assert!(!hints_shown("not json", 100.0));
+    }
+
+    #[test]
+    fn dune_goes_past_the_screen() {
+        assert_eq!(past_screen("Dune, next."), Some("next."));
+        assert_eq!(past_screen("dune new tab firefox"), Some("new tab firefox"));
+        assert_eq!(past_screen("dune"), None);
+        assert_eq!(past_screen("Dune."), None);
+        assert_eq!(past_screen("next"), None);
+        assert_eq!(past_screen("dunes next"), None);
+    }
+
     fn map() -> Minimap {
         let tile = |tile, app: &str, title: &str| MapTile { tile, app: app.into(), title: title.into() };
         Minimap {
@@ -430,20 +511,28 @@ mod tests {
         let run = |cmd: &str| Some(Do::Run(cmd.into()));
         assert_eq!(
             browser_command("Open X.com."),
-            run("wtype -M ctrl l -m ctrl && sleep 0.15 && wtype -- 'x.com' && wtype -k Return")
+            run("wtype -s 50 -M ctrl l -m ctrl && sleep 0.15 && wtype -s 50 -- 'x.com' && wtype -s 50 -k Return")
         );
         assert_eq!(
             browser_command("open github dot com"),
-            run("wtype -M ctrl l -m ctrl && sleep 0.15 && wtype -- 'github.com' && wtype -k Return")
+            run("wtype -s 50 -M ctrl l -m ctrl && sleep 0.15 && wtype -s 50 -- 'github.com' && wtype -s 50 -k Return")
         );
         assert_eq!(browser_command("open firefox"), None);
         assert_eq!(
             browser_command("Search rust borrow checker"),
-            run("wtype -M ctrl t -m ctrl && sleep 0.15 && wtype -- 'rust borrow checker' && wtype -k Return")
+            run("wtype -s 50 -M ctrl t -m ctrl && sleep 0.15 && wtype -s 50 -- 'rust borrow checker' && wtype -s 50 -k Return")
         );
-        assert_eq!(browser_command("DevTools"), run("wtype -M ctrl -M shift i -m shift -m ctrl"));
-        assert_eq!(browser_command("back"), run("wtype -M alt -k Left -m alt"));
+        assert_eq!(browser_command("Closed up."), run("wtype -s 50 -M ctrl w -m ctrl"));
+        assert_eq!(browser_command("close up"), run("wtype -s 50 -M ctrl w -m ctrl"));
+        assert_eq!(browser_command("DevTools"), run("wtype -s 50 -M ctrl -M shift i -m shift -m ctrl"));
+        assert_eq!(browser_command("back"), run("wtype -s 50 -M alt -k Left -m alt"));
         assert_eq!(browser_command("tab github"), Some(Do::Tab("github".into())));
+        assert_eq!(browser_command("Commands."), run("wtype -k F2"));
+        assert_eq!(browser_command("quick commands"), run("wtype -k F2"));
+        assert_eq!(
+            browser_command("command bookmarks"),
+            run("wtype -k F2 && sleep 0.15 && wtype -- 'bookmarks' && wtype -k Return")
+        );
         assert_eq!(browser_command("desk two"), None);
     }
 

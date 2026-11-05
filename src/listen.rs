@@ -374,9 +374,16 @@ fn hear(ear: &Ear, listening: &Listening, until: Until) {
     }
     // How Hex hears a phrase, learnt (`dune-voice train`): that phrase.
     let learned = Learned::load();
-    let text = learned.apply(text);
+    let started = learned.apply_start(text, &config.phrases).filter(|_| learned.apply(text) == text);
+    let text = started.as_deref().unwrap_or_else(|| learned.apply(text));
+    // "dune …": past what is on screen, straight to the phrases ("dune next" with a
+    // browser focused is dune's next tab, not the browser's).
+    let (text, screen) = match context::past_screen(text) {
+        Some(rest) => (rest, false),
+        None => (text, true),
+    };
     // What is on screen first: the minimap open, the browser focused.
-    match context::command(text) {
+    match context::command(text).filter(|_| screen) {
         Some(Do::Run(command)) => {
             notice.say(&format!("✓ {text}"), "");
             return run(&command);
@@ -394,7 +401,11 @@ fn hear(ear: &Ear, listening: &Listening, until: Until) {
             notice.say(&format!("✓ {text}"), "");
             run(&command);
         }
-        None if !text.is_empty() && text != "[unk]" => notice.say("Not understood", text),
+        None if !text.is_empty() && text != "[unk]" => {
+            // Kept, to be taught later: what Hex wrote, before any learnt variant.
+            crate::misheard::log(heard.trim());
+            notice.say("Not understood", &format!("{text}\n(dune-voice fix)"));
+        }
         None if until == Until::Silence && listening.stop.load(Ordering::SeqCst) => notice.say("Stopped listening", ""),
         None => notice.say("Heard nothing", ""),
     }

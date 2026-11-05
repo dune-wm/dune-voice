@@ -14,6 +14,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::context;
 use crate::phrases::{self, Phrase};
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -51,6 +52,18 @@ impl Learned {
         self.heard.get(&key(heard)).map_or(heard, String::as_str)
     }
 
+    /// `heard` with its start learnt, for a phrase with free text: "doon new tap" is learnt,
+    /// so "doon new tap chrome" is "dune new tab chrome". Of two words or more, and only
+    /// when that is a phrase: a word alone learnt ("a" = "up") says nothing of what follows.
+    pub fn apply_start(&self, heard: &str, table: &[Phrase]) -> Option<String> {
+        let said = phrases::words(heard);
+        (2..said.len()).rev().find_map(|n| {
+            let phrase = self.heard.get(&said[..n].join(" "))?;
+            let whole = format!("{phrase} {}", said[n..].join(" "));
+            phrases::matches(table, context::past_screen(&whole).unwrap_or(&whole)).then_some(whole)
+        })
+    }
+
     /// Learn what was heard when `phrase` was said: each one that is not the phrase
     /// already, nor another phrase without free text (it would take that one's place).
     /// What it did with each, to tell.
@@ -73,6 +86,12 @@ impl Learned {
                 (k, kept)
             })
             .collect()
+    }
+
+    /// Learn that `heard` was `phrase` (`dune-voice fix`), as `learn` does: not when it is
+    /// the phrase already, or another phrase.
+    pub fn teach(&mut self, heard: &str, phrase: &str, table: &[Phrase]) -> Kept {
+        self.learn(phrase, &[heard.to_string()], table).pop().map_or(Kept::Nothing, |(_, kept)| kept)
     }
 }
 
@@ -117,6 +136,31 @@ mod tests {
         assert_eq!(learned.apply("oben vivaldi"), "open vivaldi");
         assert_eq!(learned.apply("close"), "close");
         assert_eq!(learned.apply("open firefox"), "open firefox");
+    }
+
+    #[test]
+    fn the_start_of_a_phrase_with_text_is_learnt_too() {
+        let mut learned = Learned::default();
+        learned.heard.insert("doon new tap".into(), "dune new tab".into());
+        learned.heard.insert("new top".into(), "new tab".into());
+        learned.heard.insert("dip tool".into(), "devtools".into());
+        learned.heard.insert("a".into(), "up".into());
+        let table = table();
+        assert_eq!(learned.apply_start("Doon New Tap Chrome.", &table).as_deref(), Some("dune new tab chrome"));
+        assert_eq!(learned.apply_start("New top terminal", &table).as_deref(), Some("new tab terminal"));
+        // Not a phrase then, a word alone, or nothing after it.
+        assert_eq!(learned.apply_start("dip tool open", &table), None);
+        assert_eq!(learned.apply_start("a new tab chrome", &table), None);
+        assert_eq!(learned.apply_start("doon new tap", &table), None);
+    }
+
+    #[test]
+    fn what_fix_is_told_is_learnt() {
+        let mut learned = Learned::default();
+        assert_eq!(learned.teach("Dip tool.", "devtools", &table()), Kept::Learned);
+        assert_eq!(learned.apply("dip tool"), "devtools");
+        assert_eq!(learned.teach("close", "left", &table()), Kept::Other("close".into()));
+        assert_eq!(learned.teach("left", "left", &table()), Kept::Right);
     }
 
     #[test]

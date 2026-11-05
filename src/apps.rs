@@ -63,9 +63,19 @@ pub fn closest<'a>(heard: &str, apps: &'a [App]) -> Option<&'a App> {
         .map(|(_, app)| app)
 }
 
+/// The app a general word means.
+const MEANS: &[(&str, &str)] = &[("terminal", "wezterm")];
+
+/// What was heard, or the app its general word means.
+fn meant(heard: &str) -> &str {
+    let said = compact(heard);
+    MEANS.iter().find(|(word, _)| *word == said).map_or(heard, |(_, app)| app)
+}
+
 /// What to hand dune-finder for `heard`: the app it names, else `heard` as it is.
 pub fn resolve(heard: &str) -> String {
     let apps = installed();
+    let heard = meant(heard);
     closest(heard, &apps).map_or_else(|| heard.to_string(), |app| app.name.clone())
 }
 
@@ -94,6 +104,12 @@ mod tests {
         assert_eq!(closest("spotify", &apps).unwrap().name, "Spotify");
         assert_eq!(closest("Wes term", &apps).unwrap().name, "WezTerm");
         assert_eq!(closest("vivaldi", &apps).unwrap().name, "Vivaldi");
+    }
+
+    #[test]
+    fn a_terminal_is_wezterm() {
+        assert_eq!(closest(meant("Terminal."), &apps()).unwrap().name, "WezTerm");
+        assert_eq!(meant("firefox"), "firefox");
     }
 
     #[test]

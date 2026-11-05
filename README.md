@@ -96,15 +96,16 @@ With dune-finder (Hex only, the text is anything said):
 |---|---|
 | open *text* | start the app it names (`open firefox`): the installed app whose name is closest to what was heard, spaces and case not counting (Hex's "Spotify fast" is spotifast), else the first dune-finder lists |
 | find *text*, search *text* | dune-finder on the apps with the text typed in |
-| window *text*, go to *text* | show the first window it lists (`go to slack`) |
+| window *text*, go to *text*, focus *text* | show the first window it lists (`go to slack`, `focus vivaldi`; with a browser focused, `go to x.com` is an address, `focus` never) |
 | file *text* | dune-finder on the files with the text typed in |
 | open file *text* | open the first file or folder it lists |
-| new tab *text* | start the first app it lists as a tab of this tile (`new tab firefox`) |
+| new tab *text* | start the first app it lists as a tab of this tile (`new tab firefox`); `terminal` as an app is WezTerm |
 
 With [dune-a11y](https://github.com/dune-wm/dune-a11y) (Hex only):
 
 | Phrase | Does |
 |---|---|
+| hints | a word on each clickable thing around the pointer (dune-a11y and dune-shell): say a word to click it, `done` or `cancel` to close them; they go after 15 s |
 | click *text*, click on *text*, press *text* | click what is called that in the focused window: a button, a link, a tab, a menu item (`click save`, `press send`); `dune-a11y names` lists what can be said. "click" alone is still the pointer's button |
 
 "Open" and "go to" take the first row as Enter would, never the text as a command; when
@@ -137,9 +138,23 @@ Then hold Mod and say the phrase, 10 times; nothing runs meanwhile, and a notifi
 counts. It prints what Hex heard each time and, at the end, keeps each that is not the
 phrase as a way of saying it, in `~/.local/state/dune-voice/learned.toml` (`"heard" =
 "phrase"`): heard again, it is that phrase, before anything matches (the browser's and the
-minimap's phrases too). What is already another phrase ("close") is not kept, said so.
+minimap's phrases too). The start of a phrase with free text counts too: with "doon new tap"
+learnt, "doon new tap chrome" is `dune new tab chrome`. What is already another phrase ("close") is not kept, said so.
 Ctrl+C stops it (what was heard so far is still learnt). Remove a line of the file to
 forget it. Hex only: Vosk only hears the phrases themselves.
+
+What was not understood in use is kept too, in `~/.local/state/dune-voice/misheard.jsonl`
+(when, and what Hex wrote; the notification says `dune-voice fix`). Then:
+
+```sh
+dune-voice fix
+```
+
+goes through it, the most repeated first: for each, the closest phrases (the table's, the
+browser's and the minimap's) to pick by number, `w` to write the phrase it was, `s` to
+skip it, `f` to forget it, `q` to stop. A phrase picked or written is learnt as `train`
+learns it (in `learned.toml`), and that line leaves the log; one written that no phrase
+is asks first, as it would never run.
 
 ## What is on screen
 
@@ -153,11 +168,16 @@ Some phrases depend on it, and are tried before the table above:
 - **A Chromium browser focused** (Vivaldi, Chrome, Brave…): `open x.com` / `open github
   dot com` (that address in this tab; not an address: the app, as usual), `search …` (a
   new tab, the browser's search engine), `devtools`, `back`, `forward`, `reload`, `next` /
-  `previous` (tabs), `new tab`, `close tab`, `reopen tab`, `address`, `top`, `bottom`,
-  `scroll down` / `up`, `zoom in` / `out` / `reset`, `find in page …`, and `tab …` (the
+  `previous` (tabs), `new tab`, `close tab` / `close up`, `reopen tab`, `address`, `top`, `bottom`,
+  `scroll down` / `up`, `zoom in` / `out` / `reset`, `find in page …`, `commands` (Vivaldi's Quick Commands,
+  F2, set in Vivaldi), `command …` (Quick Commands with that text, then Enter), and `tab …` (the
   tab whose title or address has those words). Keys go through `wtype` (dune's virtual
   keyboard); `tab …` through the DevTools HTTP API: start the browser with
   `--remote-debugging-port=9222` (`DUNE_VOICE_CDP_PORT` for another port).
+
+**`dune …`** goes past what is on screen, straight to the table: with Vivaldi focused,
+`next` is the browser's next tab and `dune next` dune's (`dune back`, `dune new tab`,
+`dune next tab`…).
 
 After the table, when no phrase is it: **the strip of tiles** of the focused monitor
 (`dune events window,strip`): `first`, `last`, or a program's name (`firefox`, `wezterm`,
@@ -170,4 +190,5 @@ a title) go to that tile. A phrase of the table wins: `terminal` still opens one
 - `src/listen.rs`: the daemon, the socket (`$XDG_RUNTIME_DIR/dune-voice.sock`), Hex and Vosk.
 - `src/phrases.rs`: the built-in phrases, `{n}`, `{text}`, matching what was heard.
 - `src/config.rs`: `voice.toml`.
-- `src/learned.rs`: what `train` learnt, applied to what is heard.
+- `src/learned.rs`: what `train` (and `fix`) learnt, applied to what is heard.
+- `src/misheard.rs`: what was not understood, and the phrases closest to it for `fix`.

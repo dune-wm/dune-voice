@@ -119,12 +119,15 @@ const DEFAULTS: &[(&str, &str)] = &[
     ("search {text}", "dune find apps {text}"),
     ("window {text}", "dune find --pick windows {text}"),
     ("go to {text}", "dune find --pick windows {text}"),
+    // "go to" with a browser focused may be an address ("go to x.com"); "focus" never is.
+    ("focus {text}", "dune find --pick windows {text}"),
     ("file {text}", "dune find files {text}"),
     ("open file {text}", "dune find --pick files {text}"),
     // `:t`: the app as a tab of the focused tile's container.
     ("new tab {text}", "dune find --pick apps {text} :t"),
     // dune-a11y: what is called that in the focused window (a button, a link, a tab...),
     // from its accessibility tree; "click" alone is still the pointer's button.
+    ("hints", "dune-a11y hints"),
     ("click {text}", "dune-a11y click {text}"),
     ("click on {text}", "dune-a11y click {text}"),
     ("press {text}", "dune-a11y click {text}"),
@@ -224,6 +227,11 @@ fn find_with<'a>(phrases: &'a [Phrase], heard: &str, app: &dyn Fn(&str) -> Strin
             let text = if phrase.command.starts_with(OPENS_APP) { app(&text) } else { text };
             Heard { phrase, command: phrase.command.replace(TEXT, &quote(&text)) }
         })
+}
+
+/// Whether `heard` is a phrase, with free text or not (nothing run, no app looked for).
+pub fn matches(phrases: &[Phrase], heard: &str) -> bool {
+    find_with(phrases, heard, &|text: &str| text.to_string()).is_some()
 }
 
 /// The phrase without free text `heard` is, if any.
@@ -352,8 +360,10 @@ mod tests {
         assert_eq!(command(&phrases, "Open Firefox.").as_deref(), Some("dune find --pick apps 'firefox'"));
         assert_eq!(command(&phrases, "find visual studio code").as_deref(), Some("dune find apps 'visual studio code'"));
         assert_eq!(command(&phrases, "Go to Slack").as_deref(), Some("dune find --pick windows 'slack'"));
+        assert_eq!(command(&phrases, "Focus Vivaldi.").as_deref(), Some("dune find --pick windows 'vivaldi'"));
         assert_eq!(command(&phrases, "New tab, Firefox.").as_deref(), Some("dune find --pick apps 'firefox' :t"));
         assert_eq!(command(&phrases, "new tab").as_deref(), Some("dune action empty_tab"));
+        assert!(matches(&phrases, "new tab chrome") && matches(&phrases, "new tab terminal"));
         assert_eq!(command(&phrases, "Next.").as_deref(), Some("dune action next_tab"));
         assert_eq!(command(&phrases, "back").as_deref(), Some("dune action prev_tab"));
         // dune-a11y: a name in the focused window; the pointer's buttons stay.
